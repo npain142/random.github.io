@@ -11,7 +11,8 @@ const ball = {
     radius: 5,
     x: 0,
     y: gameSize.height + 10,
-    dir: "n"
+    dirX: "n",
+    gradfactor: 0
 }
 
 
@@ -74,28 +75,29 @@ document.onkeydown = e => {
 }
 
 //Calc playerposition
-function playerPos() {
-    if (player1.dir === "u") {
-        player1.y -= 2;
-    } else if (player1.dir == "d") {
-        player1.y += 2;
+function playerPos(p) {
+    if (p.dir === "u") {
+        p.y -= 2;
+    } else if (p.dir == "d") {
+        p.y += 2;
     }
 }  
 
 //Calc Ballposition
 function ballPos() {
-    if (ball.dir == "l") {
+    ball.y += ball.gradfactor;
+    if (ball.dirX == "l") {
         ball.x -= 1;
-    } else if (ball.dir == "r") {
+    } else if (ball.dirX == "r") {
         ball.x += 1;
     }
 }
 
 function ballBoost(duration, boostFactor) {
     const ballBoostAnim = setInterval(() => {
-        if (ball.dir == "l") {
+        if (ball.dirX == "l") {
             ball.x -= boostFactor;
-        } else if (ball.dir == "r") {
+        } else if (ball.dirX == "r") {
             ball.x += boostFactor;
         }
     }, 1)
@@ -112,20 +114,45 @@ function wallCollision(p) {
 }
 
 //Player -- Ball
-function ballPlayerCollision() {
-    if ((player1.x + platform.width >= ball.x - ball.radius) && (player1.y <= ball.y-ball.radius) && (player1.y + platform.height >= ball.y + ball.radius)) {
-        return true;
+function ballPlayerCollisionP1() {
+    if ((player1.x + platform.width >= ball.x - ball.radius) && (player1.y <= ball.y + ball.radius) && (player1.y + platform.height >= ball.y + ball.radius)) {
+        for (let i = 1; i <= 5; i++) {
+            if (player1.y + i*platform.height/5 >= ball.y) {
+                return i;
+            }
+        }
     }
+    return -1;
 }
 
-//Ball -- Wall
-function ballWallCollision() {
+function ballPlayerCollisionP2() {
+    if ((player2.x <= ball.x + ball.radius) && (player2.y <= ball.y + ball.radius) && (player2.y + platform.height >= ball.y + ball.radius)) {
+        for (let i = 1; i <= 5; i++) {
+            if (player2.y + i*platform.height/5 >= ball.y) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+//Ball -- Wall (Horizontal)
+function ballWallCollisionHor() {
     if (ball.x < player1.x + platform.width/2) {
         return true;
     }
 }
 
-//animations
+
+//Ball -- Wall (Vertical)
+function ballWallCollisionVer() {
+    if (ball.y - ball.radius <= 0 || ball.y + ball.radius >= gameSize.height) {
+        return true;
+    }
+}
+
+
+//ANIMATIONS
 
 //Tailanimations
 //Playertail
@@ -150,9 +177,9 @@ function playerTailAnimation(p) {
 const ballTail = [];
 function ballTailAnimation() {
     ctx.save();
-    if (ball.dir == "l") {
+    if (ball.dirX == "l") {
         ballTail.unshift({x: ball.x, y: ball.y });
-    } else if (ball.dir == "r") {
+    } else if (ball.dirX == "r") {
         ballTail.unshift({x: ball.x, y: ball.y});
     }
     for (let i = 0; i < ballTail.length; i++) {
@@ -169,8 +196,8 @@ function ballTailAnimation() {
 //Ball starting animation
 function startBall(checker) {
     ctx.save();
-    //ball.dir = (Math.random() <= 1/2) ? "l" : "r"; 
-    ball.dir = "l"
+    //ball.dirX = (Math.random() <= 1/2) ? "l" : "r"; 
+    ball.dirX = "l"
     const interval1 = setInterval(() => {
         if (ball.y >= gameSize.height/2 - ball.radius/2) {
             ctx.clearRect(ball.x - ball.radius, ball.y - ball.radius, ball.radius*2, ball.radius*2);
@@ -198,16 +225,47 @@ function gameClock() {
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2, false);
     ctx.fill();
-    playerPos();
-    if (ballPlayerCollision()) {
-        ball.dir = "r";
+    playerPos(player1);
+    playerPos(player2);
+    const bPColl1 = ballPlayerCollisionP1();
+    const bPColl2 = ballPlayerCollisionP2();
+    
+    if (bPColl1 > 0 || bPColl2 > 0) {
+        
+        ball.dirX = (bPColl1 > 0) ? "r" : "l";
+        if (ball.gradfactor == 0) {
+            ball.gradfactor = Math.random() * 2;
+            let sgn = Math.random();
+            ball.gradfactor *= (sgn < 1/2) ? -1 : 1;
+        }
+        let tmp = (bPColl1 > 0) ? bPColl1 : bPColl2;
+        switch (tmp) {
+            case 1:
+                ball.gradfactor = (ball.gradfactor < 0) ? -2 : 2;
+                break;
+            case 2:
+                ball.gradfactor = (ball.gradfactor < 0) ? -1.5 : 1.5;
+                break;
+            case 3:
+                ball.gradfactor = (ball.gradfactor < 0) ? -1 : 1;
+                break;
+            case 4:
+                ball.gradfactor = (ball.gradfactor < 0) ? -1.5 : 1.5;
+                break;
+            case 5:
+                ball.gradfactor = (ball.gradfactor < 0) ? -2 : 2;
+                break;
+        }
     }
-    if (wallCollision(player1) || ballWallCollision()) {
+    if (wallCollision(player1) || ballWallCollisionHor()) {
         alert("LOST");
     }
-
+    if (ballWallCollisionVer()) {
+        ball.gradfactor *= -1;
+    }
     playerTailAnimation(player1);
     ctx.fillRect(player1.x, player1.y, platform.width, platform.height);
+    ctx.fillRect(player2.x, player2.y, platform.width, platform.height);
     
     requestAnimationFrame(gameClock);
 }
