@@ -1,7 +1,7 @@
 const canvas  = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
+let gameOver = false;
 
-const bounds = canvas.getBoundingClientRect();
 const gameSize = {
     width: 700,
     height: 500
@@ -14,7 +14,6 @@ const ball = {
     dirX: "n",
     gradfactor: 0
 }
-
 
 const platform = {
     width: 10,
@@ -93,6 +92,7 @@ function ballPos() {
     }
 }
 
+//Calc Ballboostpos
 function ballBoost(duration, boostFactor) {
     const ballBoostAnim = setInterval(() => {
         if (ball.dirX == "l") {
@@ -113,7 +113,7 @@ function wallCollision(p) {
         return true;
 }
 
-//Player -- Ball
+//Player -- Ball (Player1)
 function ballPlayerCollisionP1() {
     if ((player1.x + platform.width >= ball.x - ball.radius) && (player1.y <= ball.y + ball.radius) && (player1.y + platform.height >= ball.y + ball.radius)) {
         for (let i = 1; i <= 5; i++) {
@@ -124,7 +124,7 @@ function ballPlayerCollisionP1() {
     }
     return -1;
 }
-
+//Player -- Ball (Player2)
 function ballPlayerCollisionP2() {
     if ((player2.x <= ball.x + ball.radius) && (player2.y <= ball.y + ball.radius) && (player2.y + platform.height >= ball.y + ball.radius)) {
         for (let i = 1; i <= 5; i++) {
@@ -138,7 +138,7 @@ function ballPlayerCollisionP2() {
 
 //Ball -- Wall (Horizontal)
 function ballWallCollisionHor() {
-    if (ball.x < player1.x + platform.width/2) {
+    if (ball.x < player1.x + platform.width/2 || ball.x > player2.x + platform.width/2) {
         return true;
     }
 }
@@ -156,20 +156,35 @@ function ballWallCollisionVer() {
 
 //Tailanimations
 //Playertail
-const playerTail = [];
+const playerTail1 = [];
+const playerTail2 = [];
 function playerTailAnimation(p) {
     ctx.save();
-    if (p.dir == "u") {
-        playerTail.unshift({x: player1.x, y: player1.y + platform.height});
-    } else if (p.dir == "d") {
-        playerTail.unshift({x: player1.x, y: player1.y});
+    if (player1.dir == "u") {
+        playerTail1.unshift({x: player1.x, y: player1.y + platform.height});
+    } else if (player1.dir == "d") {
+        playerTail1.unshift({x: player1.x, y: player1.y});
     }
-    for (let i = 0; i < playerTail.length; i++) {
+    for (let i = 0; i < playerTail1.length; i++) {
         ctx.fillStyle = "rgba(255, 255, 255," + 1/i + ")";
-        ctx.fillRect(playerTail[i].x + i/4, playerTail[i].y , 10 - i/2, 10 - i/2);
+        ctx.fillRect(playerTail1[i].x + i/4, playerTail1[i].y , 10 - i/2, 10 - i/2);
     }
-    if (playerTail.length >= 20)
-    playerTail.pop();
+    if (playerTail1.length >= 20)
+    playerTail1.pop();
+    ctx.restore();
+
+    ctx.save();
+    if (player2.dir == "u") {
+        playerTail2.unshift({x: player2.x, y: player2.y + platform.height});
+    } else if (player2.dir == "d") {
+        playerTail2.unshift({x: player2.x, y: player2.y});
+    }
+    for (let i = 0; i < playerTail2.length; i++) {
+        ctx.fillStyle = "rgba(255, 255, 255," + 1/i + ")";
+        ctx.fillRect(playerTail2[i].x + i/4, playerTail2[i].y , 10 - i/2, 10 - i/2);
+    }
+    if (playerTail2.length >= 20)
+    playerTail2.pop();
     ctx.restore();
 }
 
@@ -196,8 +211,7 @@ function ballTailAnimation() {
 //Ball starting animation
 function startBall(checker) {
     ctx.save();
-    //ball.dirX = (Math.random() <= 1/2) ? "l" : "r"; 
-    ball.dirX = "l"
+    ball.dirX = (Math.random() <= 1/2) ? "l" : "r"; 
     const interval1 = setInterval(() => {
         if (ball.y >= gameSize.height/2 - ball.radius/2) {
             ctx.clearRect(ball.x - ball.radius, ball.y - ball.radius, ball.radius*2, ball.radius*2);
@@ -213,25 +227,39 @@ function startBall(checker) {
     ctx.restore();
 }
 
+//GameEndingAnimation
+function destroyAnimation() {
+    //TODO
+}
 
-
+//Gameclock (RequestAnimationframe)
 function gameClock() {
     ctx.clearRect(0, 0, gameSize.width, gameSize.height);
 
-    ballPos();
+    //Animations
     ballTailAnimation();
+    playerTailAnimation();
+
+    //Draw
     //Draw Ball
     ctx.save();
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2, false);
     ctx.fill();
+
+    //Draw Players
+    ctx.fillRect(player1.x, player1.y, platform.width, platform.height);
+    ctx.fillRect(player2.x, player2.y, platform.width, platform.height);
+
+    //Postitions
+    ballPos();
     playerPos(player1);
     playerPos(player2);
+
+    //Collisions
     const bPColl1 = ballPlayerCollisionP1();
     const bPColl2 = ballPlayerCollisionP2();
-    
     if (bPColl1 > 0 || bPColl2 > 0) {
-        
         ball.dirX = (bPColl1 > 0) ? "r" : "l";
         if (ball.gradfactor == 0) {
             ball.gradfactor = Math.random() * 2;
@@ -257,17 +285,31 @@ function gameClock() {
                 break;
         }
     }
-    if (wallCollision(player1) || ballWallCollisionHor()) {
-        alert("LOST");
+    if (ballWallCollisionHor()) {
+        if (ball.x < gameSize.width/2) {
+            endGame();
+
+        } else {
+            endGame();
+        }
+    }
+    if (wallCollision(player1)) {
+        endGame();
+    } else if(wallCollision(player2)) {
+        endGame();
     }
     if (ballWallCollisionVer()) {
         ball.gradfactor *= -1;
     }
-    playerTailAnimation(player1);
-    ctx.fillRect(player1.x, player1.y, platform.width, platform.height);
-    ctx.fillRect(player2.x, player2.y, platform.width, platform.height);
-    
-    requestAnimationFrame(gameClock);
+
+    //Rerender
+    if (!gameOver)
+        requestAnimationFrame(gameClock);
+}
+
+function endGame() {
+    gameOver = true;
+    destroyAnimation();
 }
 
 function startGame() {
@@ -292,5 +334,5 @@ function startGame() {
         }
     }, 10)
 }
-startGame();
 
+startGame();
